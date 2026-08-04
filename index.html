@@ -192,7 +192,7 @@ function init(){
 	showPage('geral');
 	if(location.protocol!=='file:'){
 		if(window.Papa){
-			Papa.parse('./base_gm.csv',{download:true,worker:true,delimiter:';',skipEmptyLines:true,complete:function(results){try{loadFromRows(results.data,'base_gm.csv')}catch(e){console.error(e);alert('Erro ao carregar CSV GM: '+e.message)}}});
+			Papa.parse('./base_gm.csv',{download:true,delimiter:';',skipEmptyLines:true,complete:function(results){try{loadFromRows(results.data,'base_gm.csv')}catch(e){console.error(e);alert('Erro ao carregar CSV GM: '+e.message)}}});
 		} else {
 			fetch('./base_gm.csv',{cache:'no-store'}).then(r=>{if(!r.ok)throw Error(r.status);return r.text()}).then(t=>loadText(t,'base_gm.csv')).catch(()=>{});
 		}
