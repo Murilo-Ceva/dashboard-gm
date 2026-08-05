@@ -145,7 +145,7 @@ function setBadge(source){let b=$('#csv-updated-badge');if(!b){b=document.create
 function loadFromRows(A,source='CSV'){if(!A||A.length<2)throw Error('CSV vazio');let H=A.shift().map(x=>String(x).trim());window.CSV_HEADERS=H;let ix=n=>H.indexOf(n),any=(...ns)=>{for(let n of ns){let i=ix(n);if(i>=0)return i}return-1};let miss=['NR_NF','A NOVA PREVISÃO','STATUS GERAL'].filter(x=>ix(x)<0);if(miss.length)console.warn('Colunas ausentes: '+miss.join(', '));let I={nf:ix('NR_NF'),cli:ix('NOME_DEST'),cid:any('NOME_LOCALID_DEST','NOME_ENT'),uf:any('UF_LOCALID_DEST','UF_ENT'),tsp:ix('A TRANSPORTADORA'),reg:ix('A REGIÃO'),aging:ix('AGING'),nova:ix('A NOVA PREVISÃO'),prev:ix('PREV_ENTREGA'),ent:ix('A DATA ENTREGA'),status:ix('STATUS GERAL'),em:ix('DT_EMISSAO_CTRC')};let seen=new Set();DATA=A.map(r=>{let nf=clean(r[I.nf]);if(nf==='Não informado'||seen.has(nf))return null;seen.add(nf);let nova=clean(r[I.nova]),prev=clean(r[I.prev]),ent=clean(r[I.ent]),status=clean(r[I.status]),aging=clean(r[I.aging]),em=dmy(r[I.em]),np=dmy(nova);return{__raw:r,nf,cliente:clean(r[I.cli]),cidade:clean(r[I.cid]),uf:clean(r[I.uf]),tsp:clean(r[I.tsp]),regiao:clean(r[I.reg]),status,aging,nova,prev,entrega:ent==='Não informado'?'—':ent,statusOtd:otd(status,aging,nova,prev,ent),diasAtraso:age(status,nova,prev,ent),emissao:em,mes:em?em.getMonth()+1:0,ano:em?em.getFullYear():0,week:week(np)}}).filter(Boolean);if(DATA.length!==seen.size)console.warn('Falha na consolidação por NF');$('#empty').classList.add('hide');$('#dash').classList.remove('hide');fillFilters();render();setBadge(source);if(PAGE==='mapa'){setTimeout(()=>{if(window.renderChoropleth){window.renderChoropleth('mapNf');}},350);}if(PAGE==='nf'){setTimeout(()=>{if(window.buildChartsForNF)window.buildChartsForNF();},350);}if(PAGE==='aging'){setTimeout(()=>{if(window.buildChartsForAging)window.buildChartsForAging();},350);} }
 function values(k){return [...new Set(DATA.map(x=>x[k]).filter(x=>x&&x!=='Não informado'))].sort((a,b)=>String(a).localeCompare(String(b),'pt-BR'))}
 function fillFilters(){let defs=[['#fm','mes',x=>meses[x]],['#fa','ano',x=>x],['#fr','regiao',x=>x],['#ft','tsp',x=>x],['#fu','uf',x=>x],['#fc','cidade',x=>x],['#fs','statusOtd',x=>x]];for(let [id,k,f] of defs){let s=$(id);if(!s)continue;let first=s.options[0]?.outerHTML||'<option value="">Todos</option>';s.innerHTML=first;for(let v of values(k)){let o=document.createElement('option');o.value=v;o.textContent=f(v);s.appendChild(o)}}}
-function rows(){let q=($('#q')?.value||'').toUpperCase();return DATA.filter(x=>(!$('#fm')?.value||x.mes==$('#fm').value)&&(!$('#fa')?.value||x.ano==$('#fa').value)&&(!$('#fr')?.value||x.regiao==$('#fr').value)&&(!$('#ft')?.value||x.tsp==$('#ft').value)&&(!$('#fu')?.value||x.uf==$('#fu').value)&&(!$('#fc')?.value||x.cidade==$('#fc').value)&&(!$('#fs')?.value||x.statusOtd==$('#fs').value)&&(!q||[x.nf,x.cliente,x.cidade,x.uf,x.tsp,x.status].join(' ').toUpperCase().includes(q)))}
+function rows(){let q=($('#q')?.value||'').toUpperCase(),di=$('#dateStart')?.value,df=$('#dateEnd')?.value,a=di?new Date(di+'T00:00:00'):null,b=df?new Date(df+'T23:59:59.999'):null,periodo=!!(a||b);return DATA.filter(x=>(periodo?x.emissao&&(!a||x.emissao>=a)&&(!b||x.emissao<=b):(!$('#fm')?.value||x.mes==$('#fm').value)&&(!$('#fa')?.value||x.ano==$('#fa').value))&&(!$('#fr')?.value||x.regiao==$('#fr').value)&&(!$('#ft')?.value||x.tsp==$('#ft').value)&&(!$('#fu')?.value||x.uf==$('#fu').value)&&(!$('#fc')?.value||x.cidade==$('#fc').value)&&(!$('#fs')?.value||x.statusOtd==$('#fs').value)&&(!q||[x.nf,x.cliente,x.cidade,x.uf,x.tsp,x.status].join(' ').toUpperCase().includes(q)))}
 function metric(r){let ok=r.filter(x=>x.statusOtd==='No prazo').length,fp=r.filter(x=>x.statusOtd==='Fora prazo').length,p=r.filter(x=>x.statusOtd==='Pendente').length,t=ok+fp;return{ok,fp,p,total:r.length,otd:t?100*ok/t:0}}
 function cards(id,a){let e=$(id);if(e)e.innerHTML=a.map(c=>`<div class="card ${c.cls||''}"><div class="k">${c.k}</div><div class="v">${c.v}</div><div class="n">${c.n||''}</div></div>`).join('')}
 function gauge(id,m,label){let e=$(id);if(!e)return;let p=Math.max(0,Math.min(100,m.otd)),col=p>=96?'#00B050':p>=90?'#F5B642':'#EF3340';e.innerHTML=`<svg viewBox="0 0 220 120"><path d="M20 105 A90 90 0 0 1 200 105" fill="none" stroke="#e5e7eb" stroke-width="26"/><path d="M20 105 A90 90 0 0 1 200 105" fill="none" stroke="${col}" stroke-width="26" pathLength="100" stroke-dasharray="${p} 100"/></svg><div class="gnum">${pct(p)}</div><div class="gmeta">${label}<br>META 96%</div>`}
@@ -239,63 +239,24 @@ if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',
  });
 })();
 </script>
-<!-- Patch: filtro diario por periodo, sincronizado com todo o dashboard -->
 <style id="period-filter-css">
-.period-filter-wrap{flex:1 1 410px;min-width:330px;display:flex;align-items:flex-end;gap:7px;flex-wrap:wrap}.period-field{display:flex;flex-direction:column;gap:2px;min-width:145px}.period-field label{font-size:8px;font-weight:1000;letter-spacing:.7px;text-transform:uppercase;color:var(--muted)}.period-field input{height:30px;border:1px solid var(--line);border-radius:9px;background:var(--card);color:var(--txt);padding:0 8px;font:800 11px inherit;outline:none}.period-field input:focus{border-color:var(--blue);box-shadow:0 0 0 3px rgba(37,111,232,.12)}#clearPeriod{height:30px;border:1px solid var(--line);border-radius:9px;background:var(--card);color:var(--muted);font-size:10px;font-weight:900;padding:0 10px;cursor:pointer}#clearPeriod:hover{color:var(--blue);border-color:var(--blue)}.period-summary{flex:1 1 100%;font-size:9px;font-weight:850;color:var(--muted);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}.period-summary.error{color:var(--red)}#ttl,#sub{display:none!important}@media(max-width:620px){.period-filter-wrap,.period-field{width:100%;min-width:0}.period-field{flex:1 1 140px}#clearPeriod{flex:1 1 100%}}
+.period-filter-wrap{flex:1 1 420px;min-width:340px;display:flex;align-items:flex-end;gap:7px;flex-wrap:wrap}.period-field{display:flex;flex-direction:column;gap:2px;min-width:145px}.period-field label{font-size:8px;font-weight:1000;letter-spacing:.7px;text-transform:uppercase;color:var(--muted)}.period-field input{height:30px;border:1px solid var(--line);border-radius:9px;background:var(--card);color:var(--txt);padding:0 8px;font:800 11px inherit;outline:none}.period-field input:focus{border-color:var(--blue);box-shadow:0 0 0 3px rgba(37,111,232,.12)}#clearPeriod{height:30px;border:1px solid var(--line);border-radius:9px;background:var(--card);color:var(--muted);font-size:10px;font-weight:900;padding:0 10px;cursor:pointer}.period-summary{flex:1 1 100%;font-size:9px;font-weight:850;color:var(--muted);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}.period-summary.error{color:var(--red)}#ttl,#sub{display:none!important}@media(max-width:620px){.period-filter-wrap,.period-field{width:100%;min-width:0}.period-field{flex:1 1 140px}#clearPeriod{flex:1 1 100%}}
 </style>
 <script id="period-filter-js">
 (function(){
-  const originalRows=window.rows;
-  function ymd(d){if(!(d instanceof Date)||isNaN(d))return'';const y=d.getFullYear(),m=String(d.getMonth()+1).padStart(2,'0'),day=String(d.getDate()).padStart(2,'0');return `${y}-${m}-${day}`}
-  function br(v){if(!v)return'';const [y,m,d]=v.split('-');return `${d}/${m}/${y}`}
-  function rangeInputs(){return {ini:document.getElementById('dateStart'),fim:document.getElementById('dateEnd'),sum:document.getElementById('periodSummary')}}
-  window.rows=function(){
-    let result=originalRows();
-    const {ini,fim}=rangeInputs();
-    if(!ini||!fim)return result;
-    const a=ini.value?new Date(ini.value+'T00:00:00'):null;
-    const b=fim.value?new Date(fim.value+'T23:59:59.999'):null;
-    if(a&&b&&a>b)return [];
-    return result.filter(x=>x.emissao&&(!a||x.emissao>=a)&&(!b||x.emissao<=b));
-  };
-  function refreshPeriodSummary(){
-    const {ini,fim,sum}=rangeInputs();if(!sum)return;
-    if(ini.value&&fim.value&&ini.value>fim.value){sum.textContent='A data inicial não pode ser maior que a data final.';sum.classList.add('error');return}
-    sum.classList.remove('error');
-    const n=window.rows().length;
-    let label='Todo o período disponível';
-    if(ini.value&&fim.value)label=`Período: ${br(ini.value)} a ${br(fim.value)}`;
-    else if(ini.value)label=`A partir de ${br(ini.value)}`;
-    else if(fim.value)label=`Até ${br(fim.value)}`;
-    sum.textContent=`${label} • ${Number(n).toLocaleString('pt-BR')} registros filtrados • Visão exclusiva por NF`;
-  }
-  function refreshAll(){
-    PG=1;DRILL=null;
-    window.render();refreshPeriodSummary();
-    if(PAGE==='mapa'&&window.renderChoropleth)setTimeout(()=>window.renderChoropleth('mapNf'),80);
-    if(PAGE==='nf'&&window.buildChartsForNF)setTimeout(()=>window.buildChartsForNF(),80);
-    if(PAGE==='aging'&&window.buildChartsForAging)setTimeout(()=>window.buildChartsForAging(),80);
-  }
-  function configureBounds(){
-    const dates=DATA.map(x=>x.emissao).filter(d=>d instanceof Date&&!isNaN(d)).sort((a,b)=>a-b);
-    if(!dates.length)return;
-    const {ini,fim}=rangeInputs();ini.min=fim.min=ymd(dates[0]);ini.max=fim.max=ymd(dates[dates.length-1]);refreshPeriodSummary();
-  }
-  function install(){
-    const title=document.querySelector('.title>div:nth-child(2)');if(!title||document.getElementById('dateStart'))return;
-    title.className='period-filter-wrap';
-    title.innerHTML='<h1 id="ttl">Visão Geral GM</h1><div class="sub" id="sub"></div><div class="period-field"><label for="dateStart">Data inicial</label><input id="dateStart" type="date" aria-label="Data inicial"></div><div class="period-field"><label for="dateEnd">Data final</label><input id="dateEnd" type="date" aria-label="Data final"></div><button id="clearPeriod" type="button">Limpar período</button><div id="periodSummary" class="period-summary">Todo o período disponível</div>';
-    document.getElementById('dateStart').addEventListener('change',refreshAll);
-    document.getElementById('dateEnd').addEventListener('change',refreshAll);
-    document.getElementById('clearPeriod').addEventListener('click',()=>{document.getElementById('dateStart').value='';document.getElementById('dateEnd').value='';refreshAll()});
-    const oldLoadText=window.loadText,oldLoadFromRows=window.loadFromRows;
-    window.loadText=function(){const r=oldLoadText.apply(this,arguments);configureBounds();return r};
-    window.loadFromRows=function(){const r=oldLoadFromRows.apply(this,arguments);configureBounds();return r};
-    const oldRender=window.render;
-    window.render=function(){const r=oldRender.apply(this,arguments);refreshPeriodSummary();return r};
-    if(DATA&&DATA.length)configureBounds();
-  }
-  if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',install);else install();
+ function br(v){if(!v)return'';const [y,m,d]=v.split('-');return `${d}/${m}/${y}`}
+ function refreshSummary(){const i=$('#dateStart'),f=$('#dateEnd'),s=$('#periodSummary');if(!s)return;if(i.value&&f.value&&i.value>f.value){s.textContent='A data inicial não pode ser maior que a data final.';s.classList.add('error');return}s.classList.remove('error');let label=i.value&&f.value?`Período diário: ${br(i.value)} a ${br(f.value)}`:i.value?`A partir de ${br(i.value)}`:f.value?`Até ${br(f.value)}`:'Filtro mensal ativo';s.textContent=`${label} • ${fmt(rows().length)} registros filtrados • Visão exclusiva por NF`}
+ function rerender(){PG=1;DRILL=null;render();refreshSummary();if(PAGE==='mapa'&&window.renderChoropleth)setTimeout(()=>window.renderChoropleth('mapNf'),80);if(PAGE==='nf'&&window.buildChartsForNF)setTimeout(()=>window.buildChartsForNF(),80);if(PAGE==='aging'&&window.buildChartsForAging)setTimeout(()=>window.buildChartsForAging(),80)}
+ function setBounds(){const ds=DATA.map(x=>x.emissao).filter(Boolean).sort((a,b)=>a-b);if(!ds.length)return;const y=d=>`${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`,i=$('#dateStart'),f=$('#dateEnd');i.min=f.min=y(ds[0]);i.max=f.max=y(ds[ds.length-1]);refreshSummary()}
+ function install(){const host=document.querySelector('.title>div:nth-child(2)');if(!host||$('#dateStart'))return;host.className='period-filter-wrap';host.innerHTML='<h1 id="ttl">Visão Geral GM</h1><div class="sub" id="sub"></div><div class="period-field"><label for="dateStart">Data inicial</label><input id="dateStart" type="date"></div><div class="period-field"><label for="dateEnd">Data final</label><input id="dateEnd" type="date"></div><button id="clearPeriod" type="button">Limpar período</button><div id="periodSummary" class="period-summary">Filtro mensal ativo</div>';
+  ['dateStart','dateEnd'].forEach(id=>$('#'+id).addEventListener('change',()=>{if($('#dateStart').value||$('#dateEnd').value){$('#fm').value='';$('#fa').value=''}rerender()}));
+  $('#clearPeriod').addEventListener('click',()=>{$('#dateStart').value='';$('#dateEnd').value='';rerender()});
+  $('#filters').addEventListener('change',e=>{if(e.target.id==='fm'||e.target.id==='fa'){$('#dateStart').value='';$('#dateEnd').value='';setTimeout(refreshSummary,0)}},true);
+  const ff=fillFilters;fillFilters=function(){const r=ff.apply(this,arguments);setTimeout(setBounds,0);return r};
+  const rr=render;render=function(){const r=rr.apply(this,arguments);refreshSummary();return r};
+  if(DATA.length)setBounds();
+ }
+ if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',install);else install();
 })();
 </script>
 </body></html>
