@@ -1247,7 +1247,7 @@ function open(t,r){if(typeof DRILL!=='undefined'&&typeof openDrill==='function')
 function draw(){if(typeof rows!=='function')return;var r=rows(),s={all:r};s.ok=r.filter(function(x){return cls(x).ok});s.okj=r.filter(function(x){var c=cls(x);return c.ok||c.just});s.late=r.filter(function(x){var c=cls(x);return c.del&&c.late});s.tok=r.filter(function(x){var c=cls(x);return c.pend&&!c.late});s.tlate=r.filter(function(x){var c=cls(x);return c.pend&&c.late});s.lj=r.filter(function(x){var c=cls(x);return c.late&&c.just});s.ln=r.filter(function(x){return cls(x).late&&!cls(x).just});s.pending=r.filter(function(x){return cls(x).pend});var d=s.all.length,h=$('ctrcGaugePanel');if(!h){h=document.createElement('section');h.id='ctrcGaugePanel';var g=$('geral');if(g)g.appendChild(h)}if(!h)return;h.innerHTML='<div class="ctrc-gauges">'+gh('Entregas dentro do prazo (Contratual)',pc(s.ok.length,d),'#00B050','ok')+gh('Entregas dentro do prazo (Real + justificadas)',pc(s.okj.length,d),'#12dba0','okj')+gh('Entregas fora do prazo',pc(s.late.length,d),'#EF3340','late')+gh('Em trânsito dentro do prazo',pc(s.tok.length,r.length),'#2e6682','tok')+gh('Em trânsito fora do prazo',pc(s.tlate.length,r.length),'#F5B642','tlate')+'</div><div class="ctrc-kpis">'+[['Total de CTRCs','all'],['No prazo','ok'],['No prazo + justificados','okj'],['Atrasados','late'],['Atrasados c/ justificativa','lj'],['Atrasados s/ justificativa','ln']].map(function(z){return '<div class="ctrc-kpi" data-k="'+z[1]+'"><small>'+z[0]+'</small><b>'+fmt(s[z[1]].length)+'</b></div>'}).join('')+'</div><div class="ctrc-note">Consolidado por NR_CTRC único. Meta: 95%. Gauges e cards clicáveis.</div>';var cardContainer=$('cardsG');if(cardContainer){var deliveredRows=s.ok.concat(s.late),deliveredWithVolume=deliveredRows.filter(function(x){return Number.isFinite(Number(x.vol))&&Number(x.vol)>0}),deliveredVolume=deliveredWithVolume.reduce(function(total,x){return total+Number(x.vol)},0),volumeHasData=deliveredWithVolume.length>0;cardContainer.innerHTML=[['Total de CTRCs','all','purple'],['No prazo','ok','green'],['No prazo + justificados','okj','teal'],['Atrasados','late','red'],['Atrasados com justificativa','lj','orange'],['Pendentes','pending','orange']].map(function(z){return '<div class="card '+z[2]+'" data-ctrc="'+z[1]+'"><div class="k">'+z[0]+'</div><div class="v">'+fmt(s[z[1]].length)+'</div><div class="n">CTRCs únicos</div></div>'}).join('')+'<div class="card purple" data-volume-delivered="1"><div class="k">Volumes entregues</div><div class="v">'+(volumeHasData?fmt(deliveredVolume):'—')+'</div><div class="n">'+(volumeHasData?'Soma da coluna volume nas entregas':'Coluna volume sem dados no filtro')+'</div></div>';cardContainer.querySelectorAll('[data-ctrc]').forEach(function(n){n.onclick=function(){open(n.querySelector('.k').textContent,s[n.dataset.ctrc])}});cardContainer.after(h)}h.querySelectorAll('[data-k]').forEach(function(n){n.onclick=function(){open(n.querySelector('h4,small').textContent,s[n.dataset.k])}})}
 function hook(){if(typeof render==='function'&&!render.__ctrc){var old=render;render=function(){var z=old.apply(this,arguments);rename();draw();return z};render.__ctrc=1}}
 function importWorkbookBuffer(buffer,filename,updatedAt){
- var w=XLSX.read(buffer,{type:'array',dense:true}),sn=w.SheetNames.indexOf('base_gm')>=0?'base_gm':w.SheetNames[0],sheet=w.Sheets[sn];
+ var w=XLSX.read(buffer,{type:'array',dense:true}),sn=w.SheetNames.indexOf('base_gm')>=0?'base_gm':w.SheetNames[0],sheet=w.Sheets[sn];window.__GM_WB_SAVED=(w.Props&&(w.Props.ModifiedDate||w.Props.CreatedDate))||null;
  if(!sheet)throw new Error('A aba base_gm não foi encontrada.');
  var matrix=worksheetRows(sheet);if(matrix.length<2)throw new Error('A aba '+sn+' não contém linhas de dados.');
  var c=csv(matrix);if(!c.count)throw new Error('Nenhum registro com NR_CTRC foi encontrado.');
@@ -1258,10 +1258,10 @@ function autoLoadBaseGM(){
  if(window.__GM_MANUAL_IMPORT||window.__GM_BASE_LOADING||window.__GM_BASE_LOADED||!/^https?:$/.test(location.protocol))return;
  window.__GM_BASE_LOADING=true;importStatus('Carregando base_gm.xlsb…',false);
  var url=new URL('base_gm.xlsb',location.href).href;
- fetch(url,{cache:'no-cache'}).then(function(resp){if(!resp.ok)throw new Error('HTTP '+resp.status);return resp.arrayBuffer()}).then(function(buffer){
+ fetch(url,{cache:'no-cache'}).then(function(resp){if(!resp.ok)throw new Error('HTTP '+resp.status);try{window.__GM_LASTMOD=resp.headers.get('Last-Modified')}catch(e){}return resp.arrayBuffer()}).then(function(buffer){
   if(window.__GM_MANUAL_IMPORT)return;
   var count=importWorkbookBuffer(buffer,'base_gm.xlsb',new Date());window.__GM_BASE_LOADED=true;
-  importStatus('Base automática: base_gm.xlsb · '+fmt(count)+' CTRCs únicos',false);
+  var sv=window.__GM_WB_SAVED?new Date(window.__GM_WB_SAVED):(window.__GM_LASTMOD?new Date(window.__GM_LASTMOD):new Date());if(isNaN(sv.getTime()))sv=new Date();var svD=new Intl.DateTimeFormat('pt-BR',{timeZone:'America/Sao_Paulo',day:'2-digit',month:'2-digit',year:'numeric'}).format(sv),svT=new Intl.DateTimeFormat('pt-BR',{timeZone:'America/Sao_Paulo',hour:'2-digit',minute:'2-digit',hourCycle:'h23'}).format(sv);importStatus('\u200BAtualizado às '+svD+' '+svT,false);
  }).catch(function(err){console.warn('Não foi possível carregar base_gm.xlsb automaticamente:',err);importStatus('Base binária não encontrada. Use “Importar” para selecionar base_gm.xlsb.',true)}).finally(function(){window.__GM_BASE_LOADING=false});
 }
 function boot(){
@@ -2038,7 +2038,7 @@ function horizontalAging(){
  panel.classList.remove('hide','hy-hide');
 }
 function positionDealer(){
- var page=E('dealer'),status=E('dealerStatusTablePanel'),detail=E('fullDetailFinal');if(!page||!status||!detail)return;
+ var page=E('dealer'),status=E('dealerStatusTablePanel'),detail=E('fullDetailFinal');if(!page||!status||!detail)return;if(page.classList.contains('hide')||page.offsetParent===null)return;
  if(status.parentNode!==page)page.appendChild(status);
  if(detail.parentNode!==page)page.appendChild(detail);
  if(status.nextElementSibling!==detail)page.insertBefore(status,detail);
@@ -2167,6 +2167,35 @@ if(typeof old==='function'&&!old.__gmGeralTsp){window.render=function(){var z=ol
 document.addEventListener('change',sched,true);
 document.addEventListener('click',function(e){if(e.target.closest&&e.target.closest('[data-page],#internalAccessBtn'))setTimeout(sched,60)},true);
 window.addEventListener('load',sched);sched();
+})();
+</script>
+
+<script id="gm-rows-cache-js">
+(function(){'use strict';
+var orig=window.rows;if(typeof orig!=='function'||orig.__gmRowsCache)return;
+var cache=null,cacheData=null,cacheSig='';
+function signature(){
+  var parts=[DATA.length,window.__HY_DATA_REVISION||0,typeof page!=='undefined'?page:'',document.body.classList.contains('client-mode')?1:0,(document.getElementById('q')||{}).value||''];
+  var sels=document.querySelectorAll('#filters select');
+  for(var i=0;i<sels.length;i++)parts.push((sels[i].dataset.field||sels[i].id)+'='+sels[i].value);
+  var multi=window.__HY_MULTI||{};
+  Object.keys(multi).forEach(function(k){var st=multi[k];parts.push(k+':'+(st&&st.size?Array.from(st).sort().join(','):''))});
+  return parts.join('\u0001');
+}
+function cached(){
+  var d=DATA,sg=signature();
+  if(cache&&cacheData===d&&cacheSig===sg)return cache.slice();
+  var r=orig.apply(this,arguments);
+  cache=r;cacheData=d;cacheSig=sg;
+  return r.slice();
+}
+cached.__gmRowsCache=true;
+window.rows=cached;
+var ff=window.fillFilters;
+if(typeof ff==='function'&&!ff.__gmRowsCache){
+  window.fillFilters=function(){cache=null;var z=ff.apply(this,arguments);cache=null;return z};
+  window.fillFilters.__gmRowsCache=true;
+}
 })();
 </script>
 </body></html>
